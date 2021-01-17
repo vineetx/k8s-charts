@@ -1,0 +1,18 @@
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  name: mediawiki
+  annotations:
+    helm.sh/hook: "post-upgrade, post-install"
+    helm.sh/hook-delete-policy: "before-hook-creation"
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/version: {{ .Chart.Version }}
+    app.kubernetes.io/part-of: mediawiki
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Chart.Name }}
+      app.kubernetes.io/version: {{ .Chart.Version }}
+      app.kubernetes.io/part-of: mediawiki
+  maxUnavailable: {{ .Values.pdbMaxUnAvailable }}

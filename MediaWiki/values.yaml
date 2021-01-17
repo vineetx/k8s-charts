@@ -1,0 +1,23 @@
+app:
+  resources:
+    limits:
+      cpu: 50m
+      memory: 512Mi
+    requests:
+      cpu: 25m
+      memory: 256Mi
+env:
+  JENKINS_BUILD_NO: 10 #dummy env to pass on containers
+image:
+  pullPolicy: Always
+  mediawiki:
+    container: app
+    repository: mediawiki
+    tag: latest
+replicaCount: 10
+service:
+  type: ClusterIP
+pdbMaxUnAvailable: 3
+hpa:
+  enabled: True
+  maxReplicas: 25
