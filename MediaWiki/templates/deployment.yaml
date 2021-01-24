@@ -37,7 +37,7 @@ spec:
              containerPort: 80
           readinessProbe:
             httpGet:
-              path: /index.php
+              path: /
               port: 80
               scheme: HTTP
             initialDelaySeconds: 30
@@ -47,7 +47,7 @@ spec:
             periodSeconds: 30
           livenessProbe:
             httpGet:
-              path: /index.php
+              path: /
               port: 80
               scheme: HTTP
             initialDelaySeconds: 30
@@ -60,8 +60,28 @@ spec:
             - name: {{ $key }}
               value: {{ $value | quote }}
 {{- end }}
-            - name: SECRET
+            - name: MEDIAWIKI_DB_HOST
               valueFrom:
                 secretKeyRef:
                   name: {{ template "mediawiki.fullname" . }}
-                  key: SECRET
+                  key: MEDIAWIKI_DB_HOST
+            - name: MEDIAWIKI_DB_TYPE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ template "mediawiki.fullname" . }}
+                  key: MEDIAWIKI_DB_TYPE
+            - name: MEDIAWIKI_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ template "mediawiki.fullname" . }}
+                  key: MEDIAWIKI_DB_PASSWORD
+            - name: MEDIAWIKI_DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ template "mediawiki.fullname" . }}
+                  key: MEDIAWIKI_DB_NAME
+            - name: MEDIAWIKI_DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ template "mediawiki.fullname" . }}
+                  key: MEDIAWIKI_DB_USER

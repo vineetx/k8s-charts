@@ -1,28 +1,94 @@
-FROM debian:latest
+FROM php:7.3-apache
 
-RUN apt update \
-&& apt -y install \
-apache2 \
-php \
-php-mysql \
-php-ldap \
-php-apcu \
-imagemagick \
-php-imagick \
-php-gd \
-php-curl \
-php-intl \
-php-mbstring \
-php-xml \
-wget \
-python-pygments \
-git
+# System dependencies
+RUN set -eux; \
+	\
+	apt-get update; \
+	apt-get install -y --no-install-recommends \
+		git \
+		librsvg2-bin \
+		imagemagick \
+		# Required for SyntaxHighlighting
+		python3 \
+		vim \
+	; \
+	rm -rf /var/lib/apt/lists/*
 
-#Copy and run mediwiki start script
-COPY wiki-start.sh /opt
-RUN chmod +x /opt/wiki-start.sh
-#WORKDIR /var/www/html
-ENTRYPOINT ["/opt/wiki-start.sh"]
+# Install the PHP extensions we need
+RUN set -eux; \
+	\
+	savedAptMark="$(apt-mark showmanual)"; \
+	\
+	apt-get update; \
+	apt-get install -y --no-install-recommends \
+		libicu-dev \
+	; \
+	\
+	docker-php-ext-install -j "$(nproc)" \
+		intl \
+		mbstring \
+		mysqli \
+		opcache \
+	; \
+	\
+	pecl install APCu-5.1.19; \
+	docker-php-ext-enable \
+		apcu \
+	; \
+	\
+	# reset apt-mark's "manual" list so that "purge --auto-remove" will remove all build dependencies
+	apt-mark auto '.*' > /dev/null; \
+	apt-mark manual $savedAptMark; \
+	ldd "$(php -r 'echo ini_get("extension_dir");')"/*.so \
+		| awk '/=>/ { print $3 }' \
+		| sort -u \
+		| xargs -r dpkg-query -S \
+		| cut -d: -f1 \
+		| sort -u \
+		| xargs -rt apt-mark manual; \
+	\
+	apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false; \
+	rm -rf /var/lib/apt/lists/*
 
-#Ports
-EXPOSE 80 443
+# Enable AllowEncodedSlashes for VisualEditor
+RUN sed -i "s/<\/VirtualHost>/\tAllowEncodedSlashes NoDecode\n<\/VirtualHost>/" "$APACHE_CONFDIR/sites-available/000-default.conf"
+
+
+# SQLite Directory Setup
+RUN set -eux; \
+	mkdir -p /var/www/data; \
+	chown -R www-data:www-data /var/www/data
+
+# Version
+ENV MEDIAWIKI_MAJOR_VERSION 1.35
+ENV MEDIAWIKI_VERSION 1.35.1
+
+# MediaWiki setup
+RUN set -eux; \
+	fetchDeps=" \
+		gnupg \
+		dirmngr \
+	"; \
+	apt-get update; \
+	apt-get install -y --no-install-recommends $fetchDeps; \
+	\
+	curl -fSL "https://releases.wikimedia.org/mediawiki/${MEDIAWIKI_MAJOR_VERSION}/mediawiki-${MEDIAWIKI_VERSION}.tar.gz" -o mediawiki.tar.gz; \
+	curl -fSL "https://releases.wikimedia.org/mediawiki/${MEDIAWIKI_MAJOR_VERSION}/mediawiki-${MEDIAWIKI_VERSION}.tar.gz.sig" -o mediawiki.tar.gz.sig; \
+	export GNUPGHOME="$(mktemp -d)"; \
+# gpg key from https://www.mediawiki.org/keys/keys.txt
+	gpg --batch --keyserver ha.pool.sks-keyservers.net --recv-keys \
+		D7D6767D135A514BEB86E9BA75682B08E8A3FEC4 \
+		441276E9CCD15F44F6D97D18C119E1A64D70938E \
+		F7F780D82EBFB8A56556E7EE82403E59F9F8CD79 \
+		1D98867E82982C8FE0ABC25F9B69B3109D3BB7B0 \
+	; \
+	gpg --batch --verify mediawiki.tar.gz.sig mediawiki.tar.gz; \
+	tar -x --strip-components=1 -f mediawiki.tar.gz; \
+	gpgconf --kill all; \
+	rm -r "$GNUPGHOME" mediawiki.tar.gz.sig mediawiki.tar.gz; \
+	chown -R www-data:www-data extensions skins cache images; \
+	\
+	apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false $fetchDeps; \
+	rm -rf /var/lib/apt/lists/*
+
+CMD ["apache2-foreground"]
