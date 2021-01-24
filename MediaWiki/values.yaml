@@ -12,9 +12,9 @@ image:
   pullPolicy: Always
   mediawiki:
     container: app
-    repository: mediawiki
-    tag: latest
-replicaCount: 10
+    repository: vineetx/mediawiki
+    tag: v1
+replicaCount: 1
 service:
   type: ClusterIP
 pdbMaxUnAvailable: 3
